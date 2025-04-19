@@ -14,6 +14,7 @@ voice = None
 text_channel = None
 current_playing = None
 skip = False
+loop = False
 
 def extractInfo(url):
     ydl_opts = {
@@ -61,7 +62,6 @@ def extractInfo(url):
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
-global bot
 bot = commands.Bot(command_prefix='!',intents=intents)
 
 # Slash Command Definition
@@ -148,37 +148,69 @@ def getURL(youtube_url):
         url = info_dict['url']
         return url, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' 
         #return info_dict['url'], ydl._opener.headers['User-Agent']
+def addMusicButtons():
+    skipBtn = Button(label="⏭️ Skip", style=ButtonStyle.secondary)
+    loopBtn = Button(label="🔂 Repeat", style=ButtonStyle.secondary)
+    async def skipcall(interaction: Interaction):
+        global skip
+        skip = True
+        print("skipped")
+        await interaction.response.send_message("⏭️ Skipping track...", ephemeral=True)
+    async def loopcall(interaction: Interaction):
+        global loop
+        loop = not loop
+        if loop:
+            await interaction.message.add_reaction("🔂")
+            await interaction.response.send_message("Looping track", ephemeral=True)
+        else:
+            await interaction.message.remove_reaction("🔂", interaction.client.user)
+            await interaction.response.send_message("Looping disabled", ephemeral=True)
+        
+    skipBtn.callback = skipcall
+    loopBtn.callback = loopcall
+    
+    view = View()
+    view.add_item(skipBtn)
+    view.add_item(loopBtn)
+    return view
 async def fetch_and_play(json):
-    global text_channel,current_playing,skip
+    global text_channel,current_playing,skip,loop,bot
     skip = False
+    
     embed = discord.Embed(
         title="Current Playing",
         description=f"{json["title"]} ({json["duration"]})",
     )
-    skipBtn = Button(label="⏭️ Skip", style=ButtonStyle.secondary)
-    async def skipcall(interaction: Interaction):
-        global skip
-        skip = True
-        await interaction.response.send_message("⏭️ Skipping track...", ephemeral=True)
-    skipBtn.callback = skipcall
-    view = View()
-    view.add_item(skipBtn)
-            
-    sent = await text_channel.send(embed=embed,view=view)
-    url, user_agent = getURL(json["url"])
-    ffmpeg_options = {
-        'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "{user_agent}"',
-        'options': '-vn'
-    }
-    voice.play(discord.FFmpegPCMAudio(url, **ffmpeg_options)) # this is asynchronus serverclock still runs
-    current_playing = json
-    while(voice.is_playing()):
-        if(skip):
+    sent = await text_channel.send(embed=embed,view=addMusicButtons())
+
+    while(True):
+        url, user_agent = getURL(json["url"])
+        ffmpeg_options = {
+            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "{user_agent}"',
+            'options': '-vn'
+        }
+        voice.play(discord.FFmpegPCMAudio(url, **ffmpeg_options)) # this is asynchronus serverclock still runs
+        current_playing = json
+        while(voice.is_playing()):
+            if(skip):
+                break
+            await asyncio.sleep(1)
+        if not loop:
             break
-        await asyncio.sleep(1)
-    current_playing = None
+        loop = False
+        await sent.remove_reaction("🔂", bot.user)
+    #==================done playing=========================
     voice.stop()
-    await sent.edit(view=None)
+    current_playing = None
+    text = "Completed 🍆"
+    if skip:
+        text = "Skipped ⏩"
+    embed = discord.Embed(
+        title=text,
+        description=f"{json["title"]} ({json["duration"]})",
+    )
+    await sent.edit(embed=embed,view=None)
+    #==================done playing=========================
 
 jindou_token=""
 with open("a.json") as file:
