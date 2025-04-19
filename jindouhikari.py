@@ -77,7 +77,7 @@ async def playMusic(interaction: discord.Interaction, url_or_name: str):
     voice_channel = interaction.user.voice.channel
     global voice,text_channel
     text_channel = interaction.channel
-    if not voice:
+    if not voice or not voice.is_connected():
         voice = await voice_channel.connect()
     await interaction.response.defer()
 
