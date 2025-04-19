@@ -19,10 +19,14 @@ def extractInfo(url):
     ydl_opts = {
         'quiet': True,  # Don't output any unnecessary info
         'extractaudio': False,  # We don't need to download the audio or video
+        'default_search': 'ytsearch'  # Enables search if it's not a URL
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         # Extract video info
         info_dict = ydl.extract_info(url, download=False)
+
+        if 'entries' in info_dict:
+            info_dict = info_dict['entries'][0]
         
         # Video details:
         video_title = info_dict.get('title', 'Unknown Title')
@@ -37,7 +41,7 @@ def extractInfo(url):
         return {
             "title": video_title,
             "duration": video_duration,
-            "url":url
+            "url":info_dict['webpage_url']
         }
 
 # def downloadMP3(jsondata):
@@ -62,7 +66,7 @@ bot = commands.Bot(command_prefix='!',intents=intents)
 
 # Slash Command Definition
 @bot.tree.command(name="play", description="play a song")
-async def playMusic(interaction: discord.Interaction, url: str):
+async def playMusic(interaction: discord.Interaction, url_or_name: str):
     if not interaction.user.voice or not interaction.user.voice.channel:
         return await interaction.response.send_message(
             "❌ You must be in a voice channel to use this command!",
@@ -77,11 +81,14 @@ async def playMusic(interaction: discord.Interaction, url: str):
         voice = await voice_channel.connect()
     await interaction.response.defer()
 
-    json_data = extractInfo(url)
+    json_data = extractInfo(url_or_name)
     async with lock:
         json_data["id"] = str(random.randint(0,10000000000000))
         queued.append(json_data)
-    await interaction.followup.send(f"added {json_data["title"]} to queue")
+        embed = discord.Embed(
+            description=f"✅ Added {json_data["title"]} to queue"
+        )
+    await interaction.followup.send(embed=embed)
 
 # # LT code
 # # Slash Command Definition
