@@ -1,3 +1,4 @@
+import os
 import discord,json
 from discord.ext import commands
 import asyncio,subprocess,yt_dlp
@@ -15,6 +16,10 @@ text_channel = None
 current_playing = None
 skip = False
 loop = False
+
+pause = False
+count = 0
+limit = 60
 
 def extractInfo(url):
     ydl_opts = {
@@ -37,7 +42,7 @@ def extractInfo(url):
         video_duration = f"{split[0]}m {int((int(split[1])/100)*60)}s"
 
         # Print or return the video info
-        print(f"Title: {video_title} Duration: {video_duration}")
+        #print(f"Title: {video_title} Duration: {video_duration}")
 
         return {
             "title": video_title,
@@ -45,19 +50,22 @@ def extractInfo(url):
             "url":info_dict['webpage_url']
         }
 
-# def downloadMP3(jsondata):
-#     ydl_opts = {
-#         'format': 'bestaudio/best',
-#         'outtmpl': f'queued/{jsondata["id"]}.mp3',  # Output path and file name
-#         'postprocessors': [{  # Convert to mp3 using ffmpeg
-#             'key': 'FFmpegExtractAudio',
-#             'preferredcodec': 'mp3',
-#             'preferredquality': '160',
-#         }],
-#         'quiet': False,  # Set True to suppress output
-#     }
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         ydl.download([jsondata['url']])
+def downloadMP3(jsondata):
+    path = f'queued/{jsondata["id"]}'
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': path,  # Output path and file name
+        'postprocessors': [{  # Convert to mp3 using ffmpeg
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '80',
+        }],
+        'quiet': False,  # Set True to suppress output
+        'keepvideo': False,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([jsondata['url']])
+    jsondata["folder_path"] = path+".mp3"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -84,6 +92,8 @@ async def playMusic(interaction: discord.Interaction, url_or_name: str):
     json_data = extractInfo(url_or_name)
     async with lock:
         json_data["id"] = str(random.randint(0,10000000000000))
+        downloadMP3(json_data)
+        print(json_data)
         queued.append(json_data)
         embed = discord.Embed(
             description=f"✅ Added {json_data["title"]} to queue"
@@ -125,15 +135,28 @@ async def on_ready():
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
-
 async def server_clock():
-    global voice,queued,current_playing
+    global voice,queued,current_playing,text_channel,pause,count,limit
     while True:
         data = None
         async with lock:
             if(len(queued)!=0):
                 data = queued.pop(0)
+                count = 0
         if not data:
+            count+=1
+            if count > limit:
+                print("limit reached")
+                count = 0
+                if voice and voice.is_connected():
+                    await voice.disconnect()
+                    voice = None
+                if text_channel:
+                    embed = discord.Embed(
+                        description=f"⛓️‍💥 Disconnecting from inactivity"
+                    )
+                    await text_channel.send(embed=embed)
+                text_channel = None
             await asyncio.sleep(2)
             continue
         await fetch_and_play(data)
@@ -184,12 +207,16 @@ async def fetch_and_play(json):
     sent = await text_channel.send(embed=embed,view=addMusicButtons())
 
     while(True):
-        url, user_agent = getURL(json["url"])
+        # url, user_agent = getURL(json["url"])
+        # ffmpeg_options = {
+        #     'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "{user_agent}"',
+        #     'options': '-vn'
+        # }
         ffmpeg_options = {
-            'before_options': f'-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -user_agent "{user_agent}"',
             'options': '-vn'
         }
-        voice.play(discord.FFmpegPCMAudio(url, **ffmpeg_options)) # this is asynchronus serverclock still runs
+        #voice.play(discord.FFmpegPCMAudio(url, **ffmpeg_options)) # this is asynchronus serverclock still runs
+        voice.play(discord.FFmpegPCMAudio(json["folder_path"], **ffmpeg_options)) # this is asynchronus serverclock still runs
         current_playing = json
         while(voice.is_playing()):
             if(skip):
@@ -210,12 +237,18 @@ async def fetch_and_play(json):
         description=f"{json["title"]} ({json["duration"]})",
     )
     await sent.edit(embed=embed,view=None)
+    os.remove(json["folder_path"])
     #==================done playing=========================
 
 jindou_token=""
+main_folder = "queued/"
 with open("a.json") as file:
     val = json.load(file)
     jindou_token = val["jindou_token"]
+
+    #generate main_folder
+    os.makedirs(main_folder, exist_ok=True)
+
 async def run_bot():
     await bot.start(jindou_token)
 async def main():
