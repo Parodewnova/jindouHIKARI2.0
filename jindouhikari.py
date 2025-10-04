@@ -97,7 +97,7 @@ async def playMusic(interaction: discord.Interaction, url_or_name: str):
         print(json_data)
         queued.append(json_data)
         embed = discord.Embed(
-            description=f"✅ Added {json_data["title"]} to queue"
+            description=f"✅ Added {json_data['title']} to queue"
         )
     await interaction.followup.send(embed=embed)
 
@@ -209,7 +209,7 @@ async def fetch_and_play(json):
     
     embed = discord.Embed(
         title="Current Playing",
-        description=f"{json["title"]} ({json["duration"]})",
+        description=f"{json['title']} ({json['duration']})",
     )
     sent = await text_channel.send(embed=embed,view=addMusicButtons())
 
@@ -241,7 +241,7 @@ async def fetch_and_play(json):
         text = "Skipped ⏩"
     embed = discord.Embed(
         title=text,
-        description=f"{json["title"]} ({json["duration"]})",
+        description=f"{json['title']} ({json['duration']})",
     )
     await sent.edit(embed=embed,view=None)
     os.remove(json["folder_path"])
