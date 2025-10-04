@@ -124,7 +124,7 @@ async def showQueue(interaction: discord.Interaction):
     
     queue_text = ""
     async with lock:
-        queue_text = '\n'.join(f"{idx + 1}. {song['title']} ({song["duration"]})" for idx, song in enumerate(queued))
+        queue_text = '\n'.join(f"{idx + 1}. {song['title']} ({song['duration']})" for idx, song in enumerate(queued))
 
     embed = discord.Embed(
         title="🎶 Current Queue",
