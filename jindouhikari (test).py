@@ -31,7 +31,7 @@ def extractInfo(url):
     # }
     ydl_opts = {
         'quiet': True,  # Don't output any unnecessary info
-        'extractaudio': False,  # We don't need to download the audio or video
+        'no_warnings': True,  # We don't need to download the audio or video
         'default_search': 'ytsearch'  # Enables search if it's not a URL
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -56,6 +56,8 @@ def extractInfo(url):
             "duration": video_duration,
             "url":info_dict['webpage_url']
         }
+
+
 
 def downloadMP3(jsondata):
     path = f'queued/{jsondata["id"]}'
@@ -99,8 +101,8 @@ async def playMusic(interaction: discord.Interaction, url_or_name: str):
     # clean url
     refurbished = url_or_name.split("&")[0]
 
-    json_data = extractInfo(refurbished)
     async with lock:
+        json_data = extractInfo(refurbished)
         json_data["id"] = str(random.randint(0,10000000000000))
         #print(json_data)
         queued.append(json_data)
@@ -268,14 +270,15 @@ async def fetch_and_stream(json):
     while(True):
         ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
+            'options': '-vn -ar 48000 -ac 2'
         }
         #-reconnect 1: Enables reconnection.
         #-reconnect_streamed 1: Enables reconnection for streamed media.
         #-reconnect_delay_max 5: Max delay between reconnect attempts is 5 seconds.
         #-vn: Disable video.
         
-        voice.play(discord.FFmpegPCMAudio(getURL(json['url']), **ffmpeg_options)) # this is asynchronus serverclock still runs
+        source = await discord.FFmpegOpusAudio.from_probe(getURL(json['url']), **ffmpeg_options)
+        voice.play(source) # this is asynchronus serverclock still runs
         current_playing = json
 
         while(voice.is_playing()):
