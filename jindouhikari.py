@@ -90,7 +90,10 @@ async def playMusic(interaction: discord.Interaction, url_or_name: str):
         voice = await voice_channel.connect()
     await interaction.response.defer()
 
-    json_data = extractInfo(url_or_name)
+    # clean url
+    refurbished = url_or_name.split("&")[0]
+
+    json_data = extractInfo(refurbished)
     async with lock:
         json_data["id"] = str(random.randint(0,10000000000000))
         downloadMP3(json_data)
