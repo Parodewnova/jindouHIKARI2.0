@@ -5,6 +5,7 @@ import asyncio,subprocess,yt_dlp
 from asyncio.threads import to_thread
 import time,random
 from asyncio import Lock
+import shutil
 
 from discord import ButtonStyle, Interaction
 from discord.ui import Button, View
@@ -145,8 +146,8 @@ async def server_clock():
                 count = 0
         if not data:
             count+=1
-            if count > limit:
-                print("limit reached")
+            if count > limit or not voice == None and len(voice.channel.members)==1:
+                #print("limit reached")
                 count = 0
                 if voice and voice.is_connected():
                     await voice.disconnect()
@@ -157,6 +158,12 @@ async def server_clock():
                     )
                     await text_channel.send(embed=embed)
                 text_channel = None
+
+                if len(os.listdir("queued"))>1:
+                    shutil.rmtree("queued")
+                    permissions = "0o755"
+                    os.makedirs("queued",exist_ok=True)
+                    os.chmod("queued",permissions)
             await asyncio.sleep(2)
             continue
         await fetch_and_play(data)
